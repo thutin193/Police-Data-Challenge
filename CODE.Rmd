@@ -1,0 +1,448 @@
+---
+title: "Code"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+#Set up
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+data <- read_csv("/Users/thutin193/Police Challenge/police2.csv")
+```
+
+#Sneak peak
+```{r}
+dim(data)
+names(data)
+```
+
+#Rename columns
+```{r}
+names(data)[1] <- "CAD_CDW_ID"
+names(data)[2] <- "CAD_EVENT_NUMBER"
+names(data)[3] <- "GENERAL_OFFENSE_NUMBER"
+names(data)[4] <- "EVENT_CLEARANCE_CODE"
+names(data)[5] <- "EVENT_CLEARANCE_DESCRIPTION"
+names(data)[6] <- "EVENT_CLEARANCE_SUBGROUP"
+names(data)[7] <- "EVENT_CLEARANCE_GROUP"
+names(data)[8] <- "EVENT_CLEARANCE_DATE"
+names(data)[9] <- "HUNDRED_BLOCK_LOCATION"
+names(data)[10] <- "DISTRICT"
+names(data)[11] <- "ZONE"
+names(data)[12] <- "CENSUS_TRACT"
+names(data)[13] <- "LONGITUDE"
+names(data)[14] <- "LATITUDE"
+names(data)[15] <- "INCIDENT_LOCATION"
+names(data)[16] <- "INITIAL_TYPE_DESCRIPTION"
+names(data)[17] <- "INITIAL_TYPE_SUBGROUP"
+names(data)[18] <- "INITIAL_TYPE_GROUP"
+names(data)[19] <- "AT_SCENE_TIME"
+```
+
+#Reduce data
+```{r}
+data_v1 <- select(data, c(1,5,6,7,8,10,13,14))
+data_v1 <- drop_na(data_v1)
+```
+
+```{r}
+unique(data_v1$EVENT_CLEARANCE_GROUP)
+unique(data_v1$DISTRICT)
+```
+
+```{r}
+#Filter out NULL in districts and 99
+data_v1 <- data_v1 %>%
+  filter(DISTRICT != "99") %>%
+  filter(DISTRICT != "NULL")
+data_v1$DISTRICT <- as.factor(data_v1$DISTRICT)
+```
+
+#REFORMAT DATE AND TIME, ADDING SEPARATE VALUES FOR EACH
+```{r}
+data_v1$DATE <- format(as.POSIXct(strptime(data_v1$EVENT_CLEARANCE_DATE,"%m/%d/%Y %I:%M:%S %p")), format = "%m/%d/%Y")
+data_v1$MONTH <- format(as.POSIXct(strptime(data_v1$EVENT_CLEARANCE_DATE,"%m/%d/%Y %I:%M:%S %p")), format = "%m")
+data_v1$YEAR <- format(as.POSIXct(strptime(data_v1$EVENT_CLEARANCE_DATE,"%m/%d/%Y %I:%M:%S %p")), format = "%Y")
+data_v1$HOUR <- format(as.POSIXct(strptime(data_v1$EVENT_CLEARANCE_DATE,"%m/%d/%Y %I:%M:%S %p")), format = "%H")
+data_v1$WEEKDAY <- format(as.POSIXct(strptime(data_v1$EVENT_CLEARANCE_DATE,"%m/%d/%Y %I:%M:%S %p")), format = "%u")
+```
+
+#Basic summaries
+```{r, results="hide"}
+#Numbers
+table(data_v1$HOUR)
+table(data_v1$MONTH)
+table(data_v1$DISTRICT)
+table(data_v1$WEEKDAY)
+```
+
+#Visualization
+```{r}
+#By Districts
+data_v1 %>%
+  group_by(DISTRICT) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_col(mapping = aes(x = DISTRICT, y = total), fill = 'skyblue') + ylab("Total Calls") + scale_y_continuous(labels = scales::comma) + ggtitle("Number of calls by Districts")
+
+#Districts M,K,E,D,U have the most calls
+#District H has very low call
+```
+```{r}
+data_v1 %>%
+  group_by(EVENT_CLEARANCE_GROUP) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_col(mapping = aes(y = total, x=EVENT_CLEARANCE_GROUP), fill = 'skyblue') + coord_flip() + scale_y_continuous(labels = scales::comma) + theme(text = element_text(size=7), axis.text.x = element_text(hjust=1)) 
+```
+
+
+```{r}
+#By weekday
+data_v1 %>%
+  group_by(WEEKDAY) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_col(mapping = aes(x = WEEKDAY, y = total), fill = 'skyblue') + scale_x_discrete(labels = c("Monday","Tuesday","Wednesday", "Thursday", "Friday", "Saturday", "Sunday")) + ylab("Total Calls") + ggtitle("Number of calls by Weekday")
+
+#Friday has the most calls
+```
+
+
+
+```{r}
+#By Time
+data_v1 %>%
+  group_by(HOUR) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_col(mapping = aes(x = HOUR, y = total), fill = 'skyblue') + ylab("Total Calls") + ggtitle("Number of calls by Hours")
+
+
+#7PM is peak
+```
+
+```{r}
+#By month
+data_v1 %>%
+  group_by(MONTH) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_col(mapping = aes(x = MONTH, y = total), fill = 'skyblue') +ylab("Total Calls") + ggtitle("Number of calls by Months")
+
+```
+
+```{r}
+## Summary of each incident
+table(data_v1$EVENT_CLEARANCE_GROUP)
+```
+
+```{r}
+# Get the count of the calls by Day and Hour
+day_hour <- data_v1[data_v1$YEAR == "2016", c("WEEKDAY", "HOUR")] %>%
+  group_by(WEEKDAY, HOUR) %>% 
+  summarise(Count = n())
+day_hour <- as.data.frame(day_hour)
+
+# Change the type of the variables
+day_hour$WEEKDAY<- as.factor(day_hour$WEEKDAY)
+day_hour$HOUR <- as.factor(day_hour$HOUR)
+
+# Building heatmap using ggplot2
+ggplot(day_hour, aes(y=WEEKDAY, x=HOUR, fill = Count)) + geom_tile(color = "white", size = 0.1) + coord_equal() + labs(title="Calls by Day and Hour") + scale_y_discrete(labels = c("Monday","Tuesday","Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+
+```
+
+- Do traffic => look into certain types of incidents. 
+- How to make use of it => Where to put the cops. 
+- How things happen over time. Example: heatmap year + types.  
+
+```{r}
+data_v1 %>%
+  group_by(DISTRICT, HOUR) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_line(mapping = aes(x = HOUR, y = total, group = DISTRICT, color = DISTRICT)) + labs(title="Calls by District and Hours") + ylab("Total Calls")
+```
+
+Divide data into different subsets in EVENT_DESCRIPTION_GROUP to focus on
+
+```{r}
+# Public Gatherings
+public_gatherings <- data_v1 %>%
+  filter(EVENT_CLEARANCE_GROUP == "PUBLIC GATHERINGS")
+table(public_gatherings$MONTH)
+```
+
+```{r}
+# Accidents
+accidents <- data_v1 %>%
+  filter(EVENT_CLEARANCE_GROUP == "ACCIDENT INVESTIGATION")
+table(accidents$HOUR)
+```
+
+=> because of accident => dangerous at 7 for other incidents as well.
+```{r}
+accidents %>%
+  group_by(HOUR) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_col(mapping = aes(x = HOUR, y = total), fill = 'skyblue') 
+
+```
+
+```{r}
+accidents %>%
+  group_by(WEEKDAY) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_col(mapping = aes(x = WEEKDAY, y = total), fill = 'skyblue') 
+```
+
+```{r}
+accidents %>%
+  group_by(DISTRICT) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_col(mapping = aes(x = DISTRICT, y = total), fill = 'skyblue') 
+```
+
+```{r}
+accidents %>%
+  group_by(WEEKDAY) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_col(mapping = aes(x = WEEKDAY, y = total), width = 0.5, fill = 'skyblue') 
+```
+
+```{r}
+# Time stamps analysis
+table(accidents$YEAR, accidents$MONTH)
+# Missing a lot of data in 2010, 2013, 2014, 2015
+```
+
+
+```{r}
+## Get the count of the calls by Day and Hour
+accidents_plot <- accidents[accidents$YEAR == "2011", c("WEEKDAY", "HOUR")] %>%
+  group_by(WEEKDAY, HOUR) %>% 
+  summarise(Count = n())
+accident_plot <- as.data.frame(accidents_plot)
+
+## Change the type of the variables
+accident_plot$WEEKDAY<- as.factor(accident_plot$WEEKDAY)
+accident_plot$HOUR <- as.factor(accident_plot$HOUR)
+
+## Building heatmap using ggplot2
+ggplot(accident_plot, aes(y=WEEKDAY, x=HOUR, fill = Count)) + geom_tile(color = "white", size = 0.1) + coord_equal() + labs(title="Accidents by Day and Hour") + scale_y_discrete(labels = c("Monday","Tuesday","Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+
+
+```
+
+
+```{r}
+# Time series plot
+accidents %>%
+  filter(YEAR == c("2011", "2012")) %>%
+  group_by(YEAR, MONTH) %>% 
+  summarise(total = n()) %>%
+  ggplot() + geom_line(mapping = aes(x = MONTH, y = total, group = YEAR, color = YEAR)) + labs(title="Accidents through years") + theme_minimal()
+```
+```{r}
+# Traffic
+traffic <- data_v1 %>%
+  filter(EVENT_CLEARANCE_GROUP == "TRAFFIC RELATED CALLS")
+table(traffic$WEEKDAY, traffic$HOUR)
+
+traffic %>%
+  group_by(WEEKDAY, HOUR) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_line(mapping = aes(x = HOUR, y = total, group = WEEKDAY, color = WEEKDAY)) + labs(title="Traffic Calls")
+
+unique(traffic$EVENT_CLEARANCE_DESCRIPTION)
+
+```
+```{r}
+traffic %>%
+  group_by(EVENT_CLEARANCE_DESCRIPTION) %>%
+  summarise(total = n())
+```
+
+```{r}
+traffic_parking <- traffic %>%
+  filter(EVENT_CLEARANCE_DESCRIPTION == "PARKING VIOLATION (EXCEPT ABANDONED VEHICLES)") 
+
+nrow(traffic_parking)
+traffic_parking %>%
+  group_by(DISTRICT, HOUR) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_line(mapping = aes(x = HOUR, y = total, group = DISTRICT, color = DISTRICT)) + labs(title="Parking Violations")
+
+```
+
+```{r}
+# Suspicious curcumstances
+suspicious <- data_v1 %>%
+  filter(EVENT_CLEARANCE_GROUP == "SUSPICIOUS CIRCUMSTANCES")
+table(suspicious$WEEKDAY, suspicious$HOUR)
+unique(suspicious$EVENT_CLEARANCE_DESCRIPTION)
+```
+```{r}
+suspicious %>%
+  group_by(EVENT_CLEARANCE_DESCRIPTION) %>%
+  summarise(total = n())
+```
+
+```{r}
+suspicious_vehicle <- suspicious %>%
+  filter(EVENT_CLEARANCE_DESCRIPTION == "SUSPICIOUS VEHICLE")
+
+suspicious_vehicle %>%
+  group_by(DISTRICT, HOUR) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_line(mapping = aes(x = HOUR, y = total, group = DISTRICT, color = DISTRICT)) + labs(title="Suspicious Vehicles in Districts")
+
+suspicious_vehicle %>%
+  group_by(DISTRICT) %>%
+  summarise(total = n())
+
+```
+```{r}
+suspicious_vehicle %>%
+  group_by(WEEKDAY, HOUR) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_line(mapping = aes(x = HOUR, y = total, group = WEEKDAY, color = WEEKDAY)) 
+
+```
+
+```{r}
+# Fraud
+
+fraud <- data_v1 %>%
+  filter(EVENT_CLEARANCE_GROUP == "FRAUD CALLS")
+
+fraud_percentage <- as.data.frame(table(fraud$HOUR)/table(data_v1$HOUR))
+
+names(fraud_percentage)[1] <- "HOUR"
+names(fraud_percentage)[2] <- "PERCENTAGE"
+
+fraud_percentage %>%
+  ggplot() + geom_col(mapping = aes(x=HOUR, y=PERCENTAGE), fill = 'skyblue') + xlab("FRAUD PERCENTAGE")
+
+```
+
+
+```{r}
+# Assaults
+assaults <- data_v1 %>%
+  filter(EVENT_CLEARANCE_GROUP == "ASSAULTS")
+assaults %>%
+  group_by(EVENT_CLEARANCE_DESCRIPTION) %>%
+  summarise(total = n())
+
+#Disturbances
+disturbances <- data_v1 %>%
+  filter(EVENT_CLEARANCE_GROUP == "DISTURBANCES")
+disturbances %>%
+  group_by(EVENT_CLEARANCE_DESCRIPTION) %>%
+  summarise(total = n())
+
+#Weapons
+weapons <- data_v1 %>%
+  filter(EVENT_CLEARANCE_GROUP == "WEAPONS CALLS")
+weapons %>%
+  group_by(EVENT_CLEARANCE_DESCRIPTION) %>%
+  summarise(total = n())
+
+#Liquor
+liquor <- data_v1 %>%
+  filter(EVENT_CLEARANCE_GROUP == "LIQUOR VIOLATIONS")
+liquor %>%
+  group_by(EVENT_CLEARANCE_DESCRIPTION) %>%
+  summarise(total = n())
+
+#Narcotics
+narcotics <- data_v1 %>%
+  filter(EVENT_CLEARANCE_GROUP == "NARCOTICS COMPLAINTS")
+narcotics %>%
+  group_by(EVENT_CLEARANCE_DESCRIPTION) %>%
+  summarise(total = n())
+
+```
+```{r}
+#Summary
+table(assaults$DISTRICT)
+table(weapons$DISTRICT)
+table(assaults$HOUR)
+table(weapons$HOUR)
+
+#Plot
+assaults %>%
+  group_by(DISTRICT, HOUR) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_line(mapping = aes(x = HOUR, y = total, group = DISTRICT, color = DISTRICT)) + labs(title="Assaults in Districts")
+
+weapons %>%
+  group_by(DISTRICT, HOUR) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_line(mapping = aes(x = HOUR, y = total, group = DISTRICT, color = DISTRICT)) + labs(title="Weapons in Districts")
+
+```
+
+```{r}
+#Plots
+liquor %>%
+  group_by(WEEKDAY, HOUR) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_line(mapping = aes(x = HOUR, y = total, group = WEEKDAY, color = WEEKDAY)) + labs(title="Liquor in Weekdays")
+
+narcotics %>%
+  group_by(WEEKDAY, HOUR) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_line(mapping = aes(x = HOUR, y = total, group = WEEKDAY, color = WEEKDAY)) + labs(title="Narcotics Complaints in Weekdays")
+```
+```{r}
+#Substance as a whole
+substance <- data_v1 %>%
+  filter(EVENT_CLEARANCE_GROUP == c("NARCOTICS COMPLAINTS","LIQUOR VIOLATIONS"))
+substance %>%
+  group_by(EVENT_CLEARANCE_GROUP, EVENT_CLEARANCE_DESCRIPTION) %>%
+  summarise(Total = n()) %>%
+  ggplot() + geom_col(mapping = aes(x=EVENT_CLEARANCE_GROUP, y=Total, fill=EVENT_CLEARANCE_DESCRIPTION)) + xlab(NULL)
+```
+
+```{r}
+# Arrests
+arrest <- data_v1 %>%
+  filter(EVENT_CLEARANCE_GROUP == "ARREST")
+arrest %>%
+  group_by(EVENT_CLEARANCE_DESCRIPTION) %>%
+  summarise(total = n())
+arrest %>%
+  group_by(DISTRICT, HOUR) %>%
+  summarise(total = n()) %>%
+  ggplot() + geom_line(mapping = aes(x = HOUR, y = total, group = DISTRICT, color = DISTRICT)) + labs(title="Arrests in Districts")
+table(arrest$DISTRICT)
+
+#Pie chart
+arrest %>%
+  group_by(DISTRICT) %>%
+  summarise (n = n()) %>%
+  mutate(freq = n / sum(n)) %>%
+  ggplot(mapping = aes(x="", y=freq, fill=DISTRICT)) + geom_bar(width = 1, stat = "identity") + coord_polar("y", start=0)
+```
+
+```{r}
+# Try modelling
+#set.seed(123)
+#data_v1$EVENT_CLEARANCE_GROUP = as.factor(data_v1$EVENT_CLEARANCE_GROUP)
+#train_index <- sample(1:nrow(data_v1), 0.75 * nrow(data_v1))
+#test_index <- setdiff(1:nrow(data_v1), train_index)
+
+#train <- data_v1[train_index,]
+#test <- data_v1[test_index,]
+```
+
+```{r}
+# library(caret)
+# library(e1071)
+
+# model1 <- train(EVENT_CLEARANCE_GROUP~DISTRICT+LONGITUDE+LATITUDE+MONTH+HOUR+WEEKDAY, data = train, method = "knn")
+
+# Too may outputs to classify (Almost 40). Not focus on this!
+```
+
+
+
